@@ -58,6 +58,7 @@ export type TerminalPasteExecutionReason =
   | 'pty-writer-unavailable'
   | 'stale-target'
   | 'target-disconnected'
+  | 'windows-multiline-paste-too-large'
 
 export type TerminalPasteExecutionResult = {
   status: 'pasted' | 'rejected' | 'cancelled'

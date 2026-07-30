@@ -23,6 +23,11 @@ import {
 } from './terminal-paste-coordinator'
 
 const textEncoder = new TextEncoder()
+const LINUX_LOCAL_RUNTIME: TerminalPasteRuntime = {
+  platform: 'linux',
+  runtimeKey: 'local:linux',
+  kind: 'local'
+}
 
 function terminalTarget(overrides: Partial<TerminalPasteTarget> = {}): TerminalPasteTarget {
   return {
@@ -197,7 +202,7 @@ describe('terminal paste coordinator', () => {
     const plan = planTerminalPaste({
       text,
       source: 'keyboard',
-      target: terminalTarget(),
+      target: terminalTarget({ runtime: LINUX_LOCAL_RUNTIME }),
       terminalBracketedPasteMode: true,
       maxDirectBytes: 8,
       maxChunkBytes: 5
@@ -210,13 +215,15 @@ describe('terminal paste coordinator', () => {
     expect(chunks.slice(1, -1).join('')).not.toContain('\x1b[201~')
   })
 
-  it('normalizes forced multiline chunked paste line endings like xterm native paste', () => {
+  it('normalizes non-Windows forced multiline chunks like xterm native paste', () => {
     // Why: 4-byte chunks would split this CRLF pair ('abc\r' | '\ndef'), so the
     // pre-chunk normalization is what keeps the LF half away from ConPTY.
     const plan = planTerminalPaste({
       text: 'abc\r\ndef\nghi',
       source: 'keyboard',
-      target: terminalTarget(),
+      target: terminalTarget({
+        runtime: { platform: 'linux', runtimeKey: 'ssh:linux-prod', kind: 'ssh' }
+      }),
       forceBracketedPasteForMultiline: true,
       maxDirectBytes: 4,
       maxChunkBytes: 4
@@ -229,6 +236,35 @@ describe('terminal paste coordinator', () => {
     expect(chunks.at(-1)).toBe(BRACKETED_PASTE_END)
     expect(chunks.slice(1, -1).join('')).toBe('abc\rdef\rghi')
     expect(chunks.join('')).not.toContain('\n')
+  })
+
+  it('blocks large Windows multiline paste before writing any terminal input', async () => {
+    const plan = planTerminalPaste({
+      text: 'draft-safe\r\nlarge-paste',
+      source: 'keyboard',
+      target: terminalTarget(),
+      maxDirectBytes: 8
+    })
+    const pasteText = vi.fn()
+    const writePty = vi.fn()
+
+    const result = await executeTerminalPastePlan(plan, {
+      pasteText,
+      writePty,
+      isTargetCurrent: () => true
+    })
+
+    expect(plan.mode).toBe('reject')
+    expect(result).toMatchObject({
+      status: 'rejected',
+      reason: 'windows-multiline-paste-too-large',
+      chunksWritten: 0
+    })
+    expect(formatTerminalPasteExecutionError(result.reason)).toBe(
+      'Large multiline paste blocked on Windows to protect your current input. Paste smaller sections.'
+    )
+    expect(pasteText).not.toHaveBeenCalled()
+    expect(writePty).not.toHaveBeenCalled()
   })
 
   it('chunks escape-heavy bracketed paste without per-character string sanitizer scans', () => {
@@ -276,7 +312,7 @@ describe('terminal paste coordinator', () => {
         hasRichText,
         text,
         source: 'keyboard',
-        target: terminalTarget(),
+        target: terminalTarget({ runtime: LINUX_LOCAL_RUNTIME }),
         maxDirectBytes: 0,
         maxChunkBytes: 7
       })
@@ -304,7 +340,7 @@ describe('terminal paste coordinator', () => {
         hasRichText,
         text,
         source: 'keyboard',
-        target: terminalTarget(),
+        target: terminalTarget({ runtime: LINUX_LOCAL_RUNTIME }),
         terminalBracketedPasteMode: true,
         maxDirectBytes: 0,
         maxChunkBytes: 7
@@ -328,7 +364,7 @@ describe('terminal paste coordinator', () => {
     }
   })
 
-  it('uses xterm newline semantics across terminal runtime identities', async () => {
+  it('uses xterm newline semantics or rejects unsafe Windows runtime identities', async () => {
     const text = getPastePayloadCorpusText('mixed newline text')
 
     for (const { name, runtime } of RUNTIME_MATRIX) {
@@ -349,6 +385,14 @@ describe('terminal paste coordinator', () => {
         yieldToEventLoop: async () => {}
       })
 
+      if (runtime.platform === 'win32') {
+        expect(result, name).toMatchObject({
+          status: 'rejected',
+          reason: 'windows-multiline-paste-too-large'
+        })
+        expect(writePty, name).not.toHaveBeenCalled()
+        continue
+      }
       expect(result.status, name).toBe('pasted')
       expect(plan.newlinePolicy, name).toBe('terminal-cr')
       expect(plan.runtimeKey, name).toBe(runtime.runtimeKey)

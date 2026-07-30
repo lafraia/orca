@@ -226,6 +226,22 @@ describe('terminal paste runtime', () => {
     })
   })
 
+  it('uses the transport host platform for remote runtime paste safety', () => {
+    expect(
+      resolveTerminalPasteRuntime({
+        platform: 'win32',
+        ptyId: 'remote:terminal-1',
+        transport: { getRemotePlatform: () => 'linux' },
+        isWindowsConpty: true
+      })
+    ).toEqual({
+      platform: 'linux',
+      runtimeKey: 'remote:remote:terminal-1',
+      kind: 'remote-runtime',
+      isWindowsConpty: true
+    })
+  })
+
   it('keeps remote runtime PTY precedence over local WSL metadata', () => {
     expect(
       resolveTerminalPasteRuntime({

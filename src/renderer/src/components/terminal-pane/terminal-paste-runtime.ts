@@ -35,7 +35,13 @@ export function resolveTerminalPasteRuntime({
   const windowsConpty = isWindowsConpty === undefined ? {} : { isWindowsConpty }
 
   if (isRemoteRuntimePastePtyId(ptyId)) {
-    return { platform, runtimeKey: `remote:${ptyId}`, kind: 'remote-runtime', ...windowsConpty }
+    const runtimePlatform = transport?.getRemotePlatform?.() ?? remotePlatform ?? platform
+    return {
+      platform: runtimePlatform,
+      runtimeKey: `remote:${ptyId}`,
+      kind: 'remote-runtime',
+      ...windowsConpty
+    }
   }
 
   const transportConnectionId = transport?.getConnectionId?.()

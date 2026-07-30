@@ -1,6 +1,3 @@
-import { createHash, randomUUID } from 'node:crypto'
-import { rmSync, writeFileSync } from 'node:fs'
-import path from 'node:path'
 import { test, expect } from './helpers/orca-app'
 import {
   focusActiveTerminalInput,
@@ -11,6 +8,11 @@ import {
   waitForTerminalOutput
 } from './helpers/terminal'
 import { ensureTerminalVisible, waitForActiveWorktree, waitForSessionReady } from './helpers/store'
+import {
+  clearTerminalPtyWriteLog,
+  installTerminalPtyWriteSpy,
+  readTerminalPtyWriteEntries
+} from './helpers/terminal-pty-write-spy'
 
 const DRAFT = 'ORCA_CODEX_PASTE_DRAFT_SHOULD_STAY_UNSENT'
 const CODEX_TRUST_PROMPT_RE = /Do[\s\S]*you[\s\S]*trust[\s\S]*contents/i
@@ -81,34 +83,6 @@ async function activateTestRepository(
     store.getState().setActiveWorktree(worktree.id)
     store.getState().createTab(worktree.id)
   }, repoPath)
-}
-
-function pasteCollectorScript(
-  expectedLength: number,
-  expectedHash: string,
-  marker: string
-): string {
-  return `
-import { createHash } from 'node:crypto'
-process.stdin.setEncoding('utf8')
-if (process.stdin.isTTY) process.stdin.setRawMode(true)
-process.stdin.resume()
-let received = ''
-const start = String.fromCharCode(27) + '[200~'
-const end = String.fromCharCode(27) + '[201~'
-process.stdout.write(${JSON.stringify(`${marker}_READY`)} + '\\n')
-process.stdin.on('data', (chunk) => {
-  received += chunk
-  const startIndex = received.indexOf(start)
-  const endIndex = received.indexOf(end, Math.max(0, startIndex + start.length))
-  if (startIndex === -1 || endIndex === -1) return
-  const body = received.slice(startIndex + start.length, endIndex)
-  const hash = createHash('sha256').update(body).digest('hex')
-  const matches = body.length === ${expectedLength} && hash === ${JSON.stringify(expectedHash)}
-  process.stdout.write(${JSON.stringify(`${marker}_RESULT:`)} + (matches ? 'MATCH' : 'MISMATCH') + ':' + body.length + ':' + hash + '\\n')
-  process.exit(matches ? 0 : 1)
-})
-`
 }
 
 async function enableTerminalAccessibilityDom(
@@ -197,7 +171,8 @@ test.describe('Windows Codex multiline paste', () => {
     await expect(terminalDom).not.toContainText('unexpected status 404')
   })
 
-  test('delivers a normalized large paste through native ConPTY', async ({
+  test('blocks large multiline paste before native ConPTY receives input', async ({
+    electronApp,
     orcaPage,
     testRepoPath
   }) => {
@@ -210,32 +185,35 @@ test.describe('Windows Codex multiline paste', () => {
     await ensureTerminalVisible(orcaPage)
     await waitForActiveTerminalManager(orcaPage, 30_000)
 
+    await installTerminalPtyWriteSpy(electronApp)
     const ptyId = await waitForActivePanePtyId(orcaPage)
     const payload = pastePayload(110)
     const expectedText = payload.replace(/\r?\n/g, '\r')
-    // Why: assert on the normalized size so the payload keeps exercising the
-    // chunked (>64 KiB direct-max) lane even if planning ever measures
-    // post-normalization bytes.
     expect(Buffer.byteLength(expectedText, 'utf8')).toBeGreaterThan(64 * 1024)
-    const expectedHash = createHash('sha256').update(expectedText).digest('hex')
-    const marker = `ORCA_LARGE_PASTE_${randomUUID().replaceAll('-', '')}`
-    const scriptPath = path.join(testRepoPath, `.${marker}.mjs`)
-    writeFileSync(scriptPath, pasteCollectorScript(expectedText.length, expectedHash, marker))
-
+    await enableTerminalAccessibilityDom(orcaPage, ptyId)
+    await focusActiveTerminalInput(orcaPage)
+    await orcaPage.keyboard.type(DRAFT)
+    const terminalDom = orcaPage.locator(
+      `[data-pty-id=${JSON.stringify(ptyId)}] .xterm-accessibility-tree`
+    )
+    await expect(terminalDom).toContainText(DRAFT, { timeout: 10_000 })
+    await clearTerminalPtyWriteLog(electronApp)
+    await orcaPage.evaluate((text) => window.api.ui.writeClipboardText(text), payload)
     try {
-      await sendToTerminal(orcaPage, ptyId, `node ${JSON.stringify(scriptPath)}\r`)
-      await waitForTerminalOutput(orcaPage, `${marker}_READY`, 10_000, 12_000)
-      await enableTerminalAccessibilityDom(orcaPage, ptyId)
-      await focusActiveTerminalInput(orcaPage)
-      await orcaPage.evaluate((text) => window.api.ui.writeClipboardText(text), payload)
-
       await orcaPage.keyboard.press('Control+V')
-      const terminalDom = orcaPage.locator(
-        `[data-pty-id=${JSON.stringify(ptyId)}] .xterm-accessibility-tree`
+      await expect(
+        orcaPage.getByText(
+          'Large multiline paste blocked on Windows to protect your current input.',
+          { exact: false }
+        )
+      ).toBeVisible({ timeout: 10_000 })
+      await expect(terminalDom).toContainText(DRAFT)
+      const pasteWrites = (await readTerminalPtyWriteEntries(electronApp)).filter(
+        (entry) => entry.id === ptyId
       )
-      await expect(terminalDom).toContainText(`${marker}_RESULT:MATCH`, { timeout: 30_000 })
+      expect(pasteWrites).toHaveLength(0)
     } finally {
-      rmSync(scriptPath, { force: true })
+      await sendToTerminal(orcaPage, ptyId, '\x03').catch(() => undefined)
     }
   })
 })

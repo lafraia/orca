@@ -163,12 +163,21 @@ function buildTerminalPastePlan({
   const effectiveForceBracketedPaste =
     forceBracketedPaste || (forceBracketedPasteForMultiline && payload.lineCount > 1)
   const shouldBracketChunk = effectiveForceBracketedPaste || terminalBracketedPasteMode
-  const mode = choosePasteMode({
-    byteLength: payload.byteLength,
-    forceBracketedPaste: effectiveForceBracketedPaste,
-    shouldChunk,
-    maxBytes
-  })
+  // Why: ConPTY can lose a Codex bracket frame across chunked writes and turn a pasted CR into submit.
+  const blocksUnsafeWindowsMultilinePaste =
+    shouldChunk && payload.lineCount > 1 && target.runtime.platform === 'win32'
+  const rejectReason =
+    payload.byteLength > maxBytes
+      ? 'payload-too-large'
+      : blocksUnsafeWindowsMultilinePaste
+        ? 'windows-multiline-paste-too-large'
+        : undefined
+  const mode = rejectReason
+    ? 'reject'
+    : choosePasteMode({
+        forceBracketedPaste: effectiveForceBracketedPaste,
+        shouldChunk
+      })
   const plan: TerminalPastePlan = {
     target,
     payload,
@@ -178,7 +187,7 @@ function buildTerminalPastePlan({
     ...(shouldChunk ? { maxChunkBytes } : {}),
     bracketed: mode === 'bracketed-terminal' || (mode === 'chunked' && shouldBracketChunk),
     redactedDiagnostic: '',
-    ...(mode === 'reject' ? { rejectReason: 'payload-too-large' } : {})
+    ...(rejectReason ? { rejectReason } : {})
   }
   return {
     ...plan,
@@ -187,19 +196,12 @@ function buildTerminalPastePlan({
 }
 
 function choosePasteMode({
-  byteLength,
   forceBracketedPaste,
-  shouldChunk,
-  maxBytes
+  shouldChunk
 }: {
-  byteLength: number
   forceBracketedPaste: boolean
   shouldChunk: boolean
-  maxBytes: number
 }): TerminalPastePlan['mode'] {
-  if (byteLength > maxBytes) {
-    return 'reject'
-  }
   if (shouldChunk) {
     return 'chunked'
   }

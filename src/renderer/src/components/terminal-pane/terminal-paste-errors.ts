@@ -6,6 +6,9 @@ export function formatTerminalPasteExecutionError(
   if (reason === 'payload-too-large') {
     return 'Paste failed: clipboard text is too large for a safe terminal paste.'
   }
+  if (reason === 'windows-multiline-paste-too-large') {
+    return 'Large multiline paste blocked on Windows to protect your current input. Paste smaller sections.'
+  }
   if (reason === 'stale-target') {
     return 'Paste cancelled: terminal focus changed before paste started.'
   }
