@@ -333,9 +333,7 @@ const WorktreeCardAgentsBody = React.memo(function WorktreeCardAgentsBody({
           onToggleChildAgents={
             hasChildAgents ? () => toggleLineageParent(agent.paneKey) : undefined
           }
-          // Why: the lineage wrapper only indents 17px, so a descendant leaf that skips the 20px
-          // chevron gutter spends the indent right back and lands left of its parent's dot. Always
-          // reserve it below the root so each level nests by a visible step.
+          // Why: a descendant leaf that skips the chevron gutter lands left of its parent's dot.
           reserveDisclosureGutter={hasChildAgents ? false : isRootAgent ? anyRootHasChildren : true}
           isFocusedPane={agent.paneKey === focusedAgentPaneKey}
           cacheTimerActive={cacheTimerActive}

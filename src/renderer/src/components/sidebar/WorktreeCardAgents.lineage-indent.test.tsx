@@ -2,9 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Why: the compact row's leading column is what actually nests a descendant. The lineage wrapper
-// only indents 17px, so a leaf that renders no chevron gutter spends that indent right back and
-// lands left of its parent's state dot — the tree reads flat. These tests pin the gutter.
+// Why: a descendant leaf that skips the chevron gutter lands left of its parent's dot, reading flat.
 
 let mockAgents: unknown[] = []
 
