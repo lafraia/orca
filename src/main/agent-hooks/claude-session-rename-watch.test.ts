@@ -46,6 +46,8 @@ function createStubWatcherFactory() {
       bind: (): boolean => {
         stub.bindAttempts += 1
         if (stub.bindFails) {
+          // Why: the real watcher leaves itself detached when `watch()` throws.
+          stub.bound = false
           stub.rebindNeeded = true
           return false
         }
@@ -197,16 +199,31 @@ describe('createClaudeSessionRenameWatch', () => {
     watch?.sync([{ paneKey: 'tab-1:leaf-1', transcriptPath }])
     await waitFor(() => renames.length === 1)
 
-    // Why: with the watcher unbound, a rename produces no event at all. Only the
-    // catch-up read on a successful rebind can surface it.
+    // Why: with the watcher unbound, a rename produces no event at all, and a
+    // reconcile whose bind also fails must not pretend it caught up.
     const stub = stubs.forPath(transcriptPath)
-    if (stub) {
-      stub.rebindNeeded = true
+    expect(stub).toBeDefined()
+    if (!stub) {
+      return
     }
+    stub.rebindNeeded = true
+    stub.bindFails = true
     await writeFile(transcriptPath, renameRecord('written-while-unbound'))
+
+    const attemptsBeforeFailedBind = stub.bindAttempts
+    watch?.sync([{ paneKey: 'tab-1:leaf-1', transcriptPath }])
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    // Asserted so the silence below is a failed bind, not a skipped one.
+    expect(stub.bindAttempts).toBeGreaterThan(attemptsBeforeFailedBind)
+    expect(stub.bound).toBe(false)
+    expect(renames).toHaveLength(1)
+
+    // Only the catch-up read on a *successful* rebind can surface the rename.
+    stub.bindFails = false
     watch?.sync([{ paneKey: 'tab-1:leaf-1', transcriptPath }])
 
     await waitFor(() => renames.length === 2, 'the catch-up read after rebind')
+    expect(stub.bound).toBe(true)
     expect(renames[1]).toEqual({
       paneKey: 'tab-1:leaf-1',
       customTitle: 'written-while-unbound'
