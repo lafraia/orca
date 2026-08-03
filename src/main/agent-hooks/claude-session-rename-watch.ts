@@ -72,14 +72,28 @@ type WatchEntry = {
   disposed: boolean
 }
 
+export type ClaudeSessionRenameWatchOptions = {
+  /** Why: fs.watch handles are a process-wide resource, and vitest shares one
+   *  process across test files. Tests inject a stub so this module's own logic
+   *  is exercised without competing for watch handles with other suites —
+   *  binding itself belongs to `transcript-native-watcher.ts` and is tested there. */
+  createWatcher?: (
+    filePath: string,
+    onEvent: () => void,
+    onError: () => void
+  ) => TranscriptNativeWatcher
+}
+
 /**
  * Watches each live Claude pane's transcript for `/rename`, the only signal
  * that separates a deliberate session rename from the auto-generated summaries
  * Claude publishes on the same OSC title channel.
  */
 export function createClaudeSessionRenameWatch(
-  onRename: (rename: ClaudeSessionRename) => void
+  onRename: (rename: ClaudeSessionRename) => void,
+  options: ClaudeSessionRenameWatchOptions = {}
 ): ClaudeSessionRenameWatch {
+  const createWatcher = options.createWatcher ?? createTranscriptNativeWatcher
   const entries = new Map<string, WatchEntry>()
 
   function disposeEntry(entry: WatchEntry): void {
@@ -99,7 +113,19 @@ export function createClaudeSessionRenameWatch(
     entry.reading = true
     void readLastCustomTitle(entry.transcriptPath)
       .then((customTitle) => {
-        if (entry.disposed || !customTitle || customTitle === entry.lastTitle) {
+        if (entry.disposed) {
+          return
+        }
+        if (!customTitle) {
+          // Why: the transcript no longer names this session — the rename was
+          // cleared, or the file is gone. Forget it so `getKnownRenames()` stops
+          // replaying a name the transcript has already dropped. The tab keeps
+          // whatever it is showing: clearing the session name is not a request
+          // to un-name the tab.
+          entry.lastTitle = null
+          return
+        }
+        if (customTitle === entry.lastTitle) {
           return
         }
         entry.lastTitle = customTitle
@@ -162,7 +188,7 @@ export function createClaudeSessionRenameWatch(
         }
         const entry: WatchEntry = {
           transcriptPath,
-          watcher: createTranscriptNativeWatcher(
+          watcher: createWatcher(
             transcriptPath,
             () => schedule(source.paneKey, entry),
             () => schedule(source.paneKey, entry)

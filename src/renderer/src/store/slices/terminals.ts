@@ -705,8 +705,15 @@ export type TerminalSlice = {
     title: string | null,
     opts?: { recordInteraction?: boolean }
   ) => void
-  /** Record the name the agent's own rename command set for this tab's session. */
-  setTabAgentSessionTitle: (tabId: string, title: string) => void
+  /** Record the name the agent's own rename command set for this tab's session.
+   *  `onlyWhenUnset` is for the startup snapshot, whose value was captured
+   *  before the request and must never overwrite a live rename that landed
+   *  while it was in flight. */
+  setTabAgentSessionTitle: (
+    tabId: string,
+    title: string,
+    options?: { onlyWhenUnset?: boolean }
+  ) => void
   setTabColor: (tabId: string, color: string | null) => void
   updateTabPtyId: (
     tabId: string,
@@ -2228,7 +2235,7 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
     }
   },
 
-  setTabAgentSessionTitle: (tabId, title) => {
+  setTabAgentSessionTitle: (tabId, title, options) => {
     const trimmed = title.trim()
     if (!trimmed) {
       return
@@ -2242,6 +2249,11 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
     // unchanged rename is a no-op — only a genuinely new name is a new act.
     const currentTab = (get().tabsByWorktree[ownerWorktreeId] ?? []).find((t) => t.id === tabId)
     if (!currentTab || currentTab.agentSessionTitle === trimmed) {
+      return
+    }
+    // Why: a snapshot value was captured before its request was answered, so a
+    // live rename that arrived meanwhile is strictly newer.
+    if (options?.onlyWhenUnset && currentTab.agentSessionTitle) {
       return
     }
     const renamedAt = Date.now()

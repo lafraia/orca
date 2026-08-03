@@ -3318,12 +3318,15 @@ export function useIpcEvents(): void {
         applyAgentStatus(data)
       })
     )
-    const applyAgentSessionRename = (data: AgentSessionRenameIpcPayload): void => {
+    const applyAgentSessionRename = (
+      data: AgentSessionRenameIpcPayload,
+      options?: { onlyWhenUnset?: boolean }
+    ): void => {
       const tabId = data && typeof data.paneKey === 'string' ? tryParseTabId(data.paneKey) : null
       if (!tabId || typeof data.customTitle !== 'string') {
         return
       }
-      useAppStore.getState().setTabAgentSessionTitle(tabId, data.customTitle)
+      useAppStore.getState().setTabAgentSessionTitle(tabId, data.customTitle, options)
     }
     const unsubscribeAgentSessionRename =
       window.api.agentSession?.onRename?.(applyAgentSessionRename)
@@ -3332,14 +3335,22 @@ export function useIpcEvents(): void {
     }
     // Why: a rename the watcher found during startup was pushed before this
     // listener existed, and an unchanged value never re-emits — pull it once.
+    let agentSessionSnapshotAbandoned = false
+    unsubs.push(() => {
+      agentSessionSnapshotAbandoned = true
+    })
     void (async () => {
       try {
         const renames = await window.api.agentSession?.getRenameSnapshot?.()
-        if (!Array.isArray(renames)) {
+        // Why: the listener above is already live, so a rename can land while
+        // this request is in flight. The snapshot was captured before it, so it
+        // only fills gaps — `onlyWhenUnset` keeps it from overwriting the newer
+        // live value. A resolve after teardown is dropped outright.
+        if (agentSessionSnapshotAbandoned || !Array.isArray(renames)) {
           return
         }
         for (const rename of renames) {
-          applyAgentSessionRename(rename)
+          applyAgentSessionRename(rename, { onlyWhenUnset: true })
         }
       } catch {
         // Why: a best-effort catch-up. Registering the rest of this hook's IPC

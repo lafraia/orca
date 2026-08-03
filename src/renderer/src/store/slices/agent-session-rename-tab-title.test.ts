@@ -67,6 +67,26 @@ describe('agent session rename', () => {
     expect(terminalTab(store).agentSessionTitleAt).toBe(stampedAt)
   })
 
+  it('never lets a startup snapshot overwrite a rename that already landed', () => {
+    const store = createTestStore()
+    const tabId = seedWorktree(store)
+
+    // Why: the live listener is active before the snapshot request is answered,
+    // so a rename can land mid-flight. The snapshot value is older by
+    // construction and may only fill a gap.
+    store.getState().setTabAgentSessionTitle(tabId, 'live-rename')
+    store.getState().setTabAgentSessionTitle(tabId, 'stale-snapshot', { onlyWhenUnset: true })
+    expect(terminalTab(store).agentSessionTitle).toBe('live-rename')
+  })
+
+  it('applies a startup snapshot when no rename landed first', () => {
+    const store = createTestStore()
+    const tabId = seedWorktree(store)
+
+    store.getState().setTabAgentSessionTitle(tabId, 'from-snapshot', { onlyWhenUnset: true })
+    expect(terminalTab(store).agentSessionTitle).toBe('from-snapshot')
+  })
+
   it('lets a later manual rename win, and a later agent rename win back', () => {
     // Why: the two renames are ordered by wall clock, so drive it explicitly —
     // same-millisecond calls would tie and make the assertion clock-dependent.
