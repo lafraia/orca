@@ -10,7 +10,15 @@ const CUSTOM_TITLE_RECORD_TYPE = 'custom-title'
 // a bounded tail read finds the current one without scanning a large file.
 export const CLAUDE_CUSTOM_TITLE_TAIL_BYTES = 256 * 1024
 
-export function extractClaudeCustomTitle(line: string): string | null {
+/**
+ * The trimmed name on a `custom-title` line — empty string for a rename the
+ * user cleared — or null when the line is not a `custom-title` record.
+ *
+ * Why the empty-vs-null split: the backward scan has to stop at the newest
+ * record it finds, and a cleared rename is a record. Folding both into null
+ * would let the scan walk past a clear and resurface an older name.
+ */
+function parseClaudeCustomTitleLine(line: string): string | null {
   // Why: cheap reject before JSON.parse — transcripts are mostly large message
   // records and this scan runs over every line of the tail.
   if (!line.includes(CUSTOM_TITLE_RECORD_TYPE)) {
@@ -29,22 +37,28 @@ export function extractClaudeCustomTitle(line: string): string | null {
   if (type !== CUSTOM_TITLE_RECORD_TYPE || typeof customTitle !== 'string') {
     return null
   }
-  const trimmed = customTitle.trim()
-  return trimmed.length > 0 ? trimmed : null
+  return customTitle.trim()
+}
+
+/** The name a `custom-title` line carries, or null for any other line. */
+export function extractClaudeCustomTitle(line: string): string | null {
+  const title = parseClaudeCustomTitleLine(line)
+  return title ? title : null
 }
 
 /**
  * The most recent `/rename` value in a transcript tail, or null when the chunk
- * holds none. A cleared rename (empty `customTitle`) reads as no rename.
+ * holds none. A cleared rename (empty `customTitle`) is the newest state, so it
+ * reads as no rename rather than falling back to an older name.
  */
 export function findLastClaudeCustomTitle(chunk: string): string | null {
   const lines = chunk.split('\n')
   // Why: the first line of a tail read can be a fragment of a longer record;
   // JSON.parse rejects it, so no separate boundary handling is needed.
   for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const title = extractClaudeCustomTitle(lines[index] ?? '')
-    if (title) {
-      return title
+    const title = parseClaudeCustomTitleLine(lines[index] ?? '')
+    if (title !== null) {
+      return title.length > 0 ? title : null
     }
   }
   return null

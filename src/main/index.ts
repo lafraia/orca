@@ -289,7 +289,7 @@ import {
   shouldDriveSyntheticAgentTitleFromHook,
   type SyntheticAgentTitleProfile
 } from '../shared/synthetic-agent-title'
-import type { AgentStatusState } from '../shared/agent-status-types'
+import type { AgentSessionRenameIpcPayload, AgentStatusState } from '../shared/agent-status-types'
 import { resolveTuiAgentPermissionMode } from '../shared/tui-agent-permissions'
 import type { TerminalSideEffectBatch } from '../shared/terminal-side-effect-facts'
 import {
@@ -745,6 +745,15 @@ if (hasSingleInstanceLock) {
 ipcMain.handle('app:awaitFirstWindowStartupServices', async () => {
   await Promise.all([firstWindowStartupServicesReady, managedWslCliStartupBarrierReady])
 })
+
+// Why: the startup reconcile can discover a rename before the renderer has
+// subscribed, and the watcher never re-emits an unchanged value, so that push
+// would be lost for good. The renderer pulls this once it is listening —
+// mirrors `agentStatus:getSnapshot`.
+ipcMain.handle(
+  'agentSession:getRenameSnapshot',
+  (): AgentSessionRenameIpcPayload[] => claudeSessionRenameWatch?.getKnownRenames() ?? []
+)
 
 ipcMain.handle('app:recoverLegacyWorkerTerminalsForRendererStartup', () =>
   recoverLegacyWorkerTerminalsForRendererStartup({

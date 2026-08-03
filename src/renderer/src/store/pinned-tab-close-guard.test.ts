@@ -149,6 +149,9 @@ describe('resolvePinnedTabLabel', () => {
             customLabel: null,
             quickCommandLabel: null,
             generatedLabel: 'Gen',
+            // Why: without this the live label alone satisfies the assertion and
+            // the agent-rename rung is never exercised.
+            agentSessionLabel: ' Renamed session ',
             label: ' Renamed session '
           },
           {

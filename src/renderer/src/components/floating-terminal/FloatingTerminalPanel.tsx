@@ -368,6 +368,9 @@ export function FloatingTerminalPanel({
                   ...tab,
                   quickCommandLabel: tab.quickCommandLabel ?? terminalTab.quickCommandLabel,
                   generatedLabel: tab.generatedLabel ?? terminalTab.generatedTitle,
+                  // Why: the stamp is useless without its title — passing one and
+                  // not the other makes the resolver read the manual rename as absent.
+                  customLabel: tab.customLabel ?? terminalTab.customTitle ?? null,
                   customLabelAt: tab.customLabelAt ?? terminalTab.customTitleAt,
                   agentSessionLabel: tab.agentSessionLabel ?? terminalTab.agentSessionTitle,
                   agentSessionLabelAt: tab.agentSessionLabelAt ?? terminalTab.agentSessionTitleAt

@@ -132,6 +132,9 @@ export function useTabGroupWorkspaceModel({
                 ...item,
                 quickCommandLabel: item.quickCommandLabel ?? terminalTab?.quickCommandLabel,
                 generatedLabel: item.generatedLabel ?? terminalTab?.generatedTitle,
+                // Why: the stamp is useless without its title — passing one and
+                // not the other makes the resolver read the manual rename as absent.
+                customLabel: item.customLabel ?? terminalTab?.customTitle ?? null,
                 customLabelAt: item.customLabelAt ?? terminalTab?.customTitleAt,
                 agentSessionLabel: item.agentSessionLabel ?? terminalTab?.agentSessionTitle,
                 agentSessionLabelAt: item.agentSessionLabelAt ?? terminalTab?.agentSessionTitleAt

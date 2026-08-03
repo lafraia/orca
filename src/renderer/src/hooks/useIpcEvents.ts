@@ -57,6 +57,7 @@ import {
 } from '@/lib/simulator-launch-coordination'
 import {
   normalizeAgentStatusPayload,
+  type AgentSessionRenameIpcPayload,
   type AgentStatusClearIpcPayload,
   type AgentStatusIpcPayload,
   type ParsedAgentStatusPayload
@@ -3317,16 +3318,34 @@ export function useIpcEvents(): void {
         applyAgentStatus(data)
       })
     )
-    const unsubscribeAgentSessionRename = window.api.agentSession?.onRename?.((data) => {
+    const applyAgentSessionRename = (data: AgentSessionRenameIpcPayload): void => {
       const tabId = data && typeof data.paneKey === 'string' ? tryParseTabId(data.paneKey) : null
       if (!tabId || typeof data.customTitle !== 'string') {
         return
       }
       useAppStore.getState().setTabAgentSessionTitle(tabId, data.customTitle)
-    })
+    }
+    const unsubscribeAgentSessionRename =
+      window.api.agentSession?.onRename?.(applyAgentSessionRename)
     if (unsubscribeAgentSessionRename) {
       unsubs.push(unsubscribeAgentSessionRename)
     }
+    // Why: a rename the watcher found during startup was pushed before this
+    // listener existed, and an unchanged value never re-emits — pull it once.
+    void (async () => {
+      try {
+        const renames = await window.api.agentSession?.getRenameSnapshot?.()
+        if (!Array.isArray(renames)) {
+          return
+        }
+        for (const rename of renames) {
+          applyAgentSessionRename(rename)
+        }
+      } catch {
+        // Why: a best-effort catch-up. Registering the rest of this hook's IPC
+        // listeners matters more than recovering a startup rename.
+      }
+    })()
     const unsubscribeAgentStatusClear = window.api.agentStatus.onClear?.(
       (data: AgentStatusClearIpcPayload) => {
         if (typeof data !== 'object' || data === null) {

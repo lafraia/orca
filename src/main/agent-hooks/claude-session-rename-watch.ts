@@ -27,6 +27,10 @@ export type ClaudeSessionRenameSource = Readonly<{
 export type ClaudeSessionRenameWatch = {
   /** Reconcile against the live provider sessions; drops panes no longer present. */
   sync: (sources: readonly ClaudeSessionRenameSource[]) => void
+  /** Every rename seen so far. Why: renames found during startup are pushed
+   *  before the renderer subscribes, and an unchanged value never re-emits, so
+   *  the renderer pulls this once it is listening. */
+  getKnownRenames: () => ClaudeSessionRename[]
   dispose: () => void
 }
 
@@ -145,8 +149,10 @@ export function createClaudeSessionRenameWatch(
           if (existing.transcriptPath === transcriptPath) {
             // Why: fs.watch binding is best-effort on network filesystems, so
             // retry on every reconcile rather than trusting the first bind.
-            if (existing.watcher.needsRebind()) {
-              existing.watcher.bind()
+            if (existing.watcher.needsRebind() && existing.watcher.bind()) {
+              // Why: a rename written while the watcher was unbound produced no
+              // event, so catch up now — the next write may never come.
+              read(source.paneKey, existing)
             }
             continue
           }
@@ -177,6 +183,15 @@ export function createClaudeSessionRenameWatch(
           entries.delete(paneKey)
         }
       }
+    },
+    getKnownRenames(): ClaudeSessionRename[] {
+      const renames: ClaudeSessionRename[] = []
+      for (const [paneKey, entry] of entries) {
+        if (entry.lastTitle) {
+          renames.push({ paneKey, customTitle: entry.lastTitle })
+        }
+      }
+      return renames
     },
     dispose(): void {
       for (const entry of entries.values()) {

@@ -4671,7 +4671,11 @@ const api = {
         callback(data)
       ipcRenderer.on('agentSession:rename', listener)
       return () => ipcRenderer.removeListener('agentSession:rename', listener)
-    }
+    },
+    /** Pull renames observed before this renderer subscribed, so a rename found
+     *  during startup isn't lost — the watcher never re-emits an unchanged one. */
+    getRenameSnapshot: (): Promise<AgentSessionRenameIpcPayload[]> =>
+      ipcRenderer.invoke('agentSession:getRenameSnapshot')
   },
   agentStatus: {
     /** Listen for agent status updates forwarded from native hook receivers. */

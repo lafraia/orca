@@ -1493,7 +1493,9 @@ function terminalTabEqual(a: TerminalTab, b: TerminalTab): boolean {
     a.startupCwd === b.startupCwd &&
     a.generatedTitle === b.generatedTitle &&
     a.customTitle === b.customTitle &&
+    a.customTitleAt === b.customTitleAt &&
     a.agentSessionTitle === b.agentSessionTitle &&
+    a.agentSessionTitleAt === b.agentSessionTitleAt &&
     a.color === b.color &&
     a.sortOrder === b.sortOrder &&
     a.createdAt === b.createdAt &&

@@ -117,6 +117,22 @@ describe('createClaudeSessionRenameWatch', () => {
     expect(renames[2]).toEqual({ paneKey: 'tab-2:leaf-1', customTitle: 'two-renamed' })
   })
 
+  it('exposes what it has seen so a late subscriber can catch up', async () => {
+    const transcriptPath = join(dir, 'session.jsonl')
+    await writeFile(transcriptPath, renameRecord('billing-fix'))
+    watch = createClaudeSessionRenameWatch((rename) => renames.push(rename))
+
+    expect(watch.getKnownRenames()).toEqual([])
+    watch.sync([{ paneKey: 'tab-1:leaf-1', transcriptPath }])
+    await waitFor(() => renames.length === 1)
+
+    // Why: the startup push happens before the renderer subscribes, and an
+    // unchanged rename never re-emits — without this the name is lost for good.
+    expect(watch.getKnownRenames()).toEqual([
+      { paneKey: 'tab-1:leaf-1', customTitle: 'billing-fix' }
+    ])
+  })
+
   it('picks up a pane that only appears on a later reconcile', async () => {
     const transcriptPath = join(dir, 'session.jsonl')
     await writeFile(transcriptPath, renameRecord('late-pane'))

@@ -47,6 +47,9 @@ describe('agent session rename', () => {
   })
 
   it('ignores an empty rename and an unchanged re-report', () => {
+    // Why: real timers would let both calls land in the same millisecond, so a
+    // restamping regression could still satisfy the assertion by accident.
+    vi.useFakeTimers()
     const store = createTestStore()
     const tabId = seedWorktree(store)
 
@@ -59,6 +62,7 @@ describe('agent session rename', () => {
 
     // Why: Claude re-appends the rename record every turn; restamping it would
     // keep pushing a stale rename past a newer manual one.
+    vi.advanceTimersByTime(1000)
     store.getState().setTabAgentSessionTitle(tabId, 'billing-fix')
     expect(terminalTab(store).agentSessionTitleAt).toBe(stampedAt)
   })

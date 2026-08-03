@@ -3539,6 +3539,8 @@ export type PreloadApi = {
   agentSession: {
     /** Listen for `/rename` observed in a live agent transcript. */
     onRename: (callback: (data: AgentSessionRenameIpcPayload) => void) => () => void
+    /** Return renames observed before this renderer subscribed. */
+    getRenameSnapshot: () => Promise<AgentSessionRenameIpcPayload[]>
   }
   agentStatus: {
     /** Listen for agent status updates forwarded from native hook receivers. */

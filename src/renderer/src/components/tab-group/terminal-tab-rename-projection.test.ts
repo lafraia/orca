@@ -80,6 +80,35 @@ describe('terminal tab rename projection', () => {
     ).toBe('888')
   })
 
+  it('keeps a terminal-only manual rename winning over an older agent rename', () => {
+    // Why: the unified tab carries no customLabel for a locally renamed tab, so
+    // passing the stamp without its title made the resolver read the manual
+    // rename as absent and hand the label to a staler agent rename.
+    const terminalTab = {
+      customTitle: 'manual name',
+      customTitleAt: 4000,
+      agentSessionTitle: 'agent name',
+      agentSessionTitleAt: 1000
+    }
+    const item: Partial<Tab> = { customLabel: null, label: 'live title' }
+
+    expect(
+      resolveUnifiedTabLabel(
+        {
+          customLabel: item.customLabel ?? terminalTab.customTitle ?? null,
+          customLabelAt: item.customLabelAt ?? terminalTab.customTitleAt,
+          agentSessionLabel: item.agentSessionLabel ?? terminalTab.agentSessionTitle,
+          agentSessionLabelAt: item.agentSessionLabelAt ?? terminalTab.agentSessionTitleAt,
+          label: item.label ?? ''
+        },
+        true,
+        'Terminal'
+      )
+    ).toBe('manual name')
+
+    expect(projectTerminalTab(item, terminalTab).customTitle).toBe('manual name')
+  })
+
   it('prefers the unified tab values when the host owns them', () => {
     const projected = projectTerminalTab(
       { customLabel: 'host name', customLabelAt: 5000 },

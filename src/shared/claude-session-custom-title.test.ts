@@ -45,6 +45,16 @@ describe('findLastClaudeCustomTitle', () => {
     expect(findLastClaudeCustomTitle(chunk)).toBe('whole')
   })
 
+  it('treats a cleared rename as the newest state, not a miss', () => {
+    // Why: clearing a rename is itself the newest record. Scanning past it would
+    // resurface a name the user already removed.
+    const chunk = [renameRecord('A'), renameRecord('')].join('\n')
+    expect(findLastClaudeCustomTitle(chunk)).toBeNull()
+
+    const restored = [renameRecord('A'), renameRecord(''), renameRecord('B')].join('\n')
+    expect(findLastClaudeCustomTitle(restored)).toBe('B')
+  })
+
   it('returns null when the chunk holds no rename', () => {
     expect(findLastClaudeCustomTitle('')).toBeNull()
     expect(findLastClaudeCustomTitle(JSON.stringify({ type: 'user' }))).toBeNull()
