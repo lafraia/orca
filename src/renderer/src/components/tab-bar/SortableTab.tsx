@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { X, Minimize2, Pin } from 'lucide-react'
 import { stripLeadingAgentTitleDecoration } from '../../../../shared/agent-title-decoration'
+import { resolveNewestTerminalTabRename } from '../../../../shared/newest-tab-rename'
 import { useTabAgent } from '@/lib/use-tab-agent'
 import { isImeCompositionKeyDown } from '@/lib/ime-composition-keyboard-event'
 import { Input } from '@/components/ui/input'
@@ -113,9 +114,14 @@ export default function SortableTab({
   // Why: use hook status + title evidence so the icon reflects the harness running now, not just the launch command.
   const tabAgent = useTabAgent(tab)
 
+  // Why: resolved rather than the raw customTitle — the agent's own `/rename`
+  // is a rename too, and wins when it is the newer of the two.
+  const tabRename = resolveNewestTerminalTabRename(tab)
+
   // Why: with a provider icon shown, strip the agent's own leading glyph so the tab doesn't show two icons for one agent.
+  // A rename is user text, so it keeps whatever glyph the user typed.
   const displayTitle =
-    tab.customTitle ?? (tabAgent ? stripLeadingAgentTitleDecoration(tab.title) : tab.title)
+    tabRename || (tabAgent ? stripLeadingAgentTitleDecoration(tab.title) : tab.title)
 
   const { attributes, listeners, setNodeRef } = useSortable({
     id: tab.id,
@@ -138,9 +144,10 @@ export default function SortableTab({
   const handleRenameOpen = useCallback(() => {
     committedOrCancelledRef.current = false
     // Why: snapshot title once; don't refresh if tab.title changes mid-edit (e.g. OSC) so the user's edits aren't overwritten.
-    setRenameValue(tab.customTitle ?? tab.title)
+    // Seeded with the name on screen, which may be the agent's own rename.
+    setRenameValue(tabRename || tab.title)
     setIsEditing(true)
-  }, [tab.customTitle, tab.title])
+  }, [tabRename, tab.title])
 
   const commitRename = useCallback(() => {
     if (committedOrCancelledRef.current) {
@@ -210,7 +217,7 @@ export default function SortableTab({
   })
   const closeShortcut = useOptionalShortcutLabel('tab.close')
   const closeLabel = translate('auto.components.tab.bar.SortableTab.95db5f2f7d', 'Close tab')
-  const tabTitle = tab.customTitle ?? tab.title
+  const tabTitle = tabRename || tab.title
   const tabRoot = (
     <div
       ref={setNodeRef}

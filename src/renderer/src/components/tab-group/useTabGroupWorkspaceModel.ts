@@ -131,7 +131,10 @@ export function useTabGroupWorkspaceModel({
               {
                 ...item,
                 quickCommandLabel: item.quickCommandLabel ?? terminalTab?.quickCommandLabel,
-                generatedLabel: item.generatedLabel ?? terminalTab?.generatedTitle
+                generatedLabel: item.generatedLabel ?? terminalTab?.generatedTitle,
+                customLabelAt: item.customLabelAt ?? terminalTab?.customTitleAt,
+                agentSessionLabel: item.agentSessionLabel ?? terminalTab?.agentSessionTitle,
+                agentSessionLabelAt: item.agentSessionLabelAt ?? terminalTab?.agentSessionTitleAt
               },
               worktreeState.generatedTabTitlesEnabled,
               item.label
@@ -140,6 +143,11 @@ export function useTabGroupWorkspaceModel({
             quickCommandLabel: terminalTab?.quickCommandLabel ?? item.quickCommandLabel ?? null,
             generatedTitle: terminalTab?.generatedTitle ?? item.generatedLabel ?? null,
             customTitle: item.customLabel ?? terminalTab?.customTitle ?? null,
+            // Why: the tab strip resolves the newer of the two renames, so the
+            // stamps have to survive this rebuild or the agent rename can never win.
+            customTitleAt: item.customLabelAt ?? terminalTab?.customTitleAt,
+            agentSessionTitle: item.agentSessionLabel ?? terminalTab?.agentSessionTitle ?? null,
+            agentSessionTitleAt: item.agentSessionLabelAt ?? terminalTab?.agentSessionTitleAt,
             color: item.color ?? terminalTab?.color ?? null,
             sortOrder: item.sortOrder,
             createdAt: item.createdAt,

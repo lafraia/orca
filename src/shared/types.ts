@@ -832,6 +832,11 @@ export type Tab = {
   generatedLabel?: string | null
   quickCommandLabel?: string | null
   customLabel: string | null
+  /** Mirrors `TerminalTab.customTitleAt` / `agentSessionTitle*` so the unified
+   *  tab strip resolves the same newer-rename-wins order. */
+  customLabelAt?: number
+  agentSessionLabel?: string | null
+  agentSessionLabelAt?: number
   color: string | null
   sortOrder: number
   createdAt: number
@@ -873,6 +878,17 @@ export type TerminalTab = {
   /** Stable label from the tab-bar Quick Command that created this terminal. */
   quickCommandLabel?: string | null
   customTitle: string | null
+  /** When `customTitle` was committed. Why: the agent can rename its own session
+   *  (`agentSessionTitle`); both are the user renaming, so the newer act wins.
+   *  Absent on tabs renamed before this field existed — treated as oldest. */
+  customTitleAt?: number
+  /** The name the agent's own rename command set for this session (Claude
+   *  `/rename`, persisted as a `custom-title` transcript record). Kept apart
+   *  from `title` because the agent publishes renames and auto-generated task
+   *  summaries on the same OSC channel — only this one is a deliberate rename. */
+  agentSessionTitle?: string | null
+  /** When `agentSessionTitle` was observed, for the newer-rename-wins compare. */
+  agentSessionTitleAt?: number
   color: string | null
   /** Pinned tabs survive "close others"; host-persisted for remote servers. */
   isPinned?: boolean

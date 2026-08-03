@@ -19,6 +19,7 @@
 
 import type { MemorySnapshot, SessionMemory, WorktreeMemory } from '../../../../shared/types'
 import { parsePtySessionId } from '../../../../shared/pty-session-id-format'
+import { resolveNewestTerminalTabRename } from '../../../../shared/newest-tab-rename'
 import { parsePaneKey as parseStablePaneKey } from '../../../../shared/stable-pane-id'
 import {
   getRepoIdFromWorktreeId,
@@ -71,7 +72,7 @@ function resolveSnapshotSessionLabel(
     const tabIndex = tabs.findIndex((t) => t.id === parsed.tabId)
     const tab = tabIndex >= 0 ? tabs[tabIndex] : undefined
     if (tab) {
-      const custom = tab.customTitle?.trim()
+      const custom = resolveNewestTerminalTabRename(tab)
       if (custom) {
         return custom
       }
@@ -96,7 +97,7 @@ function resolveDaemonSessionLabel(
     const tabIndex = tabs.findIndex((t) => t.id === tabId)
     const tab = tabIndex >= 0 ? tabs[tabIndex] : undefined
     if (tab) {
-      const custom = tab.customTitle?.trim()
+      const custom = resolveNewestTerminalTabRename(tab)
       if (custom) {
         return custom
       }

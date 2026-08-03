@@ -3317,6 +3317,16 @@ export function useIpcEvents(): void {
         applyAgentStatus(data)
       })
     )
+    const unsubscribeAgentSessionRename = window.api.agentSession?.onRename?.((data) => {
+      const tabId = data && typeof data.paneKey === 'string' ? tryParseTabId(data.paneKey) : null
+      if (!tabId || typeof data.customTitle !== 'string') {
+        return
+      }
+      useAppStore.getState().setTabAgentSessionTitle(tabId, data.customTitle)
+    })
+    if (unsubscribeAgentSessionRename) {
+      unsubs.push(unsubscribeAgentSessionRename)
+    }
     const unsubscribeAgentStatusClear = window.api.agentStatus.onClear?.(
       (data: AgentStatusClearIpcPayload) => {
         if (typeof data !== 'object' || data === null) {
@@ -3565,6 +3575,10 @@ function hasRuntimeBackedWorktreeAttribution(data: AgentStatusIpcPayload): boole
     (typeof data.terminalHandle === 'string' && data.terminalHandle.length > 0) ||
     data.orchestration !== undefined
   )
+}
+
+function tryParseTabId(paneKey: string): string | null {
+  return parsePaneKey(paneKey)?.tabId ?? null
 }
 
 function tryMakePaneKey(tabId: string, leafId: string): string | null {

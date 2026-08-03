@@ -367,7 +367,10 @@ export function FloatingTerminalPanel({
                 {
                   ...tab,
                   quickCommandLabel: tab.quickCommandLabel ?? terminalTab.quickCommandLabel,
-                  generatedLabel: tab.generatedLabel ?? terminalTab.generatedTitle
+                  generatedLabel: tab.generatedLabel ?? terminalTab.generatedTitle,
+                  customLabelAt: tab.customLabelAt ?? terminalTab.customTitleAt,
+                  agentSessionLabel: tab.agentSessionLabel ?? terminalTab.agentSessionTitle,
+                  agentSessionLabelAt: tab.agentSessionLabelAt ?? terminalTab.agentSessionTitleAt
                 },
                 generatedTabTitlesEnabled,
                 tab.label
@@ -375,6 +378,11 @@ export function FloatingTerminalPanel({
               generatedTitle: terminalTab.generatedTitle ?? tab.generatedLabel ?? null,
               quickCommandLabel: terminalTab.quickCommandLabel ?? tab.quickCommandLabel ?? null,
               customTitle: tab.customLabel ?? terminalTab.customTitle,
+              // Why: both rename stamps must survive the rebuild or the strip
+              // can't tell which rename is the newer one.
+              customTitleAt: tab.customLabelAt ?? terminalTab.customTitleAt,
+              agentSessionTitle: tab.agentSessionLabel ?? terminalTab.agentSessionTitle,
+              agentSessionTitleAt: tab.agentSessionLabelAt ?? terminalTab.agentSessionTitleAt,
               color: tab.color ?? terminalTab.color
             }
           ]

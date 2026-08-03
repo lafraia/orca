@@ -421,6 +421,11 @@ function buildRuntimeMobileTabsProjection(tabsByWorktree: AppState['tabsByWorktr
                 quickCommandLabel: tab.quickCommandLabel,
                 generatedTitle: tab.generatedTitle,
                 customTitle: tab.customTitle,
+                // Why: part of the change key — a rename that only moves these
+                // would otherwise never resync the graph mobile/web reads.
+                customTitleAt: tab.customTitleAt,
+                agentSessionTitle: tab.agentSessionTitle,
+                agentSessionTitleAt: tab.agentSessionTitleAt,
                 launchAgent: tab.launchAgent
               }))
             )
@@ -438,7 +443,17 @@ function buildRuntimeMobileTabsProjection(tabsByWorktree: AppState['tabsByWorktr
 }
 
 function resolveRuntimeTerminalTitle(
-  tab: Pick<TerminalTab, 'customTitle' | 'quickCommandLabel' | 'generatedTitle' | 'title'>,
+  tab: Pick<
+    TerminalTab,
+    | 'customTitle'
+    | 'customTitleAt'
+    | 'agentSessionTitle'
+    | 'agentSessionTitleAt'
+    | 'quickCommandLabel'
+    | 'generatedTitle'
+    | 'title'
+    | 'defaultTitle'
+  >,
   generatedTitlesEnabled: boolean,
   liveTitle = tab.title
 ): string {

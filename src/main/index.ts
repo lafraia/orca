@@ -220,6 +220,11 @@ import {
 } from './claude-accounts/live-pty-gate'
 import { StarNagService } from './star-nag/service'
 import { agentHookServer, type AgentHookProviderSessionIdentity } from './agent-hooks/server'
+import {
+  CLAUDE_SESSION_RENAME_RECONCILE_MS,
+  createClaudeSessionRenameWatch,
+  type ClaudeSessionRenameWatch
+} from './agent-hooks/claude-session-rename-watch'
 import { createHookProviderSessionInvalidator } from './agent-hooks/hook-provider-session-invalidation'
 import { wslHookRelayManager } from './agent-hooks/wsl-hook-relay-manager'
 import { maybeAutoRenameBranchOnFirstWork } from './agent-hooks/first-work-branch-rename'
@@ -325,6 +330,7 @@ let starNag: StarNagService | null = null
 let agentAwakeService: AgentAwakeService | null = null
 let crashReports: CrashReportStore | null = null
 let unsubscribeAgentAwakeStatusChanges: (() => void) | null = null
+let claudeSessionRenameWatch: ClaudeSessionRenameWatch | null = null
 let unsubscribeSystemResumeBroadcast: (() => void) | null = null
 let watcherShutdownPromise: Promise<void> | null = null
 let watcherShutdownDone = false
@@ -2062,15 +2068,39 @@ void app.whenReady().then(async () => {
   const unsubscribeStatusChanges = agentHookServer.subscribeStatusChanges((statuses) => {
     agentAwakeService?.setStatuses(statuses)
   })
+  claudeSessionRenameWatch = createClaudeSessionRenameWatch((rename) => {
+    mainWindow?.webContents.send('agentSession:rename', rename)
+  })
+  // Why: `/rename` is a local slash command — it fires no hook, so the tab label
+  // can only follow it by watching the transcript. Reconcile against the *full*
+  // identity set, never the change feed's delta: `sync` drops panes it is not
+  // given, so a delta would tear down every other pane's watch.
+  const syncClaudeSessionRenameWatch = (): void => {
+    claudeSessionRenameWatch?.sync(agentHookServer.getProviderSessionIdentities())
+  }
   const unsubscribeProviderSessionChanges = agentHookServer.subscribeProviderSessionChanges(
     (sessions) => {
       // Healthy session.tabs streams need a push when transcript identity changes.
       publishProviderSessionChanges(sessions)
+      syncClaudeSessionRenameWatch()
     }
   )
+  // Why: the change feed only fires on a hook, so a session restored at startup
+  // (or one whose only activity is `/rename`) would never get a watch. Reconcile
+  // on a timer too — unchanged panes just re-check their fs.watch binding, which
+  // the native watcher documents as best-effort and caller-owned.
+  syncClaudeSessionRenameWatch()
+  const claudeSessionRenameReconcileTimer = setInterval(
+    syncClaudeSessionRenameWatch,
+    CLAUDE_SESSION_RENAME_RECONCILE_MS
+  )
+  claudeSessionRenameReconcileTimer.unref?.()
   unsubscribeAgentAwakeStatusChanges = () => {
     unsubscribeStatusChanges()
     unsubscribeProviderSessionChanges()
+    clearInterval(claudeSessionRenameReconcileTimer)
+    claudeSessionRenameWatch?.dispose()
+    claudeSessionRenameWatch = null
   }
   // Why: telemetry must init before any IPC handler/renderer can call track(); it's a no-op in dev and while TELEMETRY_ENABLED is false, so it's safe early.
   initTelemetry(store)

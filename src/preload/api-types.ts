@@ -350,6 +350,7 @@ import type { E2EConfig } from '../shared/e2e-config'
 import type { AgentHookInstallStatus } from '../shared/agent-hook-types'
 import type { CodexConfigSyncStatus } from '../shared/codex-config-sync-types'
 import type {
+  AgentSessionRenameIpcPayload,
   AgentStatusClearIpcPayload,
   AgentStatusIpcPayload,
   MigrationUnsupportedPtyEntry
@@ -3534,6 +3535,10 @@ export type PreloadApi = {
     refresh: () => Promise<PluginHostListEntry[]>
     /** Fires whenever installed plugins, worker states, panels, or content packs change. */
     onChanged: (callback: (event: PluginChangeEvent) => void) => () => void
+  }
+  agentSession: {
+    /** Listen for `/rename` observed in a live agent transcript. */
+    onRename: (callback: (data: AgentSessionRenameIpcPayload) => void) => () => void
   }
   agentStatus: {
     /** Listen for agent status updates forwarded from native hook receivers. */

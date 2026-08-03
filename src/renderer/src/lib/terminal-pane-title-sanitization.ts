@@ -44,7 +44,8 @@ export function isSyntheticSinglePaneTitle(
     tab.title,
     tab.defaultTitle,
     tab.quickCommandLabel,
-    tab.customTitle
+    tab.customTitle,
+    tab.agentSessionTitle
   ])
 }
 
@@ -89,6 +90,7 @@ export function sanitizeTerminalLayoutPaneTitles(
     tab.title,
     tab.defaultTitle,
     tab.quickCommandLabel,
-    tab.customTitle
+    tab.customTitle,
+    tab.agentSessionTitle
   ])
 }

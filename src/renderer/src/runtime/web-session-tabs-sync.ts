@@ -632,6 +632,17 @@ function buildMirroredTerminalTabs(
         ...(quickCommandLabel ? { quickCommandLabel } : {}),
         ...(startupCwd ? { startupCwd } : {}),
         customTitle: existing?.customTitle ?? null,
+        // Why: renames are local state the host snapshot doesn't carry; drop
+        // them here and every snapshot would erase the tab's name.
+        ...(existing?.customTitleAt ? { customTitleAt: existing.customTitleAt } : {}),
+        ...(existing?.agentSessionTitle
+          ? {
+              agentSessionTitle: existing.agentSessionTitle,
+              ...(existing.agentSessionTitleAt
+                ? { agentSessionTitleAt: existing.agentSessionTitleAt }
+                : {})
+            }
+          : {}),
         color,
         isPinned,
         ...(viewMode ? { viewMode } : {}),
@@ -788,7 +799,14 @@ function buildTerminalUnifiedTab(
     label: tab.title,
     ...(tab.quickCommandLabel?.trim() ? { quickCommandLabel: tab.quickCommandLabel.trim() } : {}),
     ...(tab.generatedTitle?.trim() ? { generatedLabel: tab.generatedTitle.trim() } : {}),
+    ...(tab.agentSessionTitle?.trim()
+      ? {
+          agentSessionLabel: tab.agentSessionTitle.trim(),
+          ...(tab.agentSessionTitleAt ? { agentSessionLabelAt: tab.agentSessionTitleAt } : {})
+        }
+      : {}),
     customLabel: tab.customTitle,
+    ...(tab.customTitleAt ? { customLabelAt: tab.customTitleAt } : {}),
     color: tab.color,
     sortOrder: tab.sortOrder,
     createdAt: tab.createdAt,
@@ -1475,6 +1493,7 @@ function terminalTabEqual(a: TerminalTab, b: TerminalTab): boolean {
     a.startupCwd === b.startupCwd &&
     a.generatedTitle === b.generatedTitle &&
     a.customTitle === b.customTitle &&
+    a.agentSessionTitle === b.agentSessionTitle &&
     a.color === b.color &&
     a.sortOrder === b.sortOrder &&
     a.createdAt === b.createdAt &&

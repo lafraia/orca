@@ -39,6 +39,113 @@ describe('tab title resolution', () => {
     ).toBe('OC | Native Stable Session')
   })
 
+  it('lets a confirmed agent rename outrank every derived label', () => {
+    expect(
+      resolveTerminalTabTitle(
+        {
+          customTitle: null,
+          agentSessionTitle: 'billing-fix',
+          quickCommandLabel: 'Run tests',
+          generatedTitle: 'Refactor auth',
+          title: '⠐ Some task summary'
+        },
+        true
+      )
+    ).toBe('billing-fix')
+  })
+
+  it('resolves manual and agent renames by which happened last', () => {
+    const tab = {
+      customTitle: 'Payments',
+      customTitleAt: 3000,
+      agentSessionTitle: 'billing-fix',
+      agentSessionTitleAt: 2000,
+      generatedTitle: 'Refactor auth',
+      title: '⠐ Some task summary'
+    }
+    expect(resolveTerminalTabTitle(tab, true)).toBe('Payments')
+    expect(resolveTerminalTabTitle({ ...tab, agentSessionTitleAt: 4000 }, true)).toBe('billing-fix')
+    expect(
+      resolveUnifiedTabLabel(
+        {
+          customLabel: 'Payments',
+          customLabelAt: 3000,
+          agentSessionLabel: 'billing-fix',
+          agentSessionLabelAt: 4000,
+          generatedLabel: 'Fix flaky tests',
+          label: '✳ Some task summary'
+        },
+        true
+      )
+    ).toBe('billing-fix')
+  })
+
+  it('lets an agent-set name outrank the generated title', () => {
+    expect(
+      resolveTerminalTabTitle(
+        { customTitle: null, generatedTitle: 'Refactor auth', title: '⠐ Ship the rename fix' },
+        true
+      )
+    ).toBe('⠐ Ship the rename fix')
+    expect(
+      resolveUnifiedTabLabel(
+        { customLabel: null, generatedLabel: 'Fix flaky tests', label: '✳ Ship the rename fix' },
+        true
+      )
+    ).toBe('✳ Ship the rename fix')
+  })
+
+  it('keeps manual renames and quick commands ahead of agent-set names', () => {
+    expect(
+      resolveTerminalTabTitle(
+        {
+          customTitle: 'Payments',
+          quickCommandLabel: 'Run tests',
+          generatedTitle: 'Refactor auth',
+          title: '⠐ Ship the rename fix'
+        },
+        true
+      )
+    ).toBe('Payments')
+    expect(
+      resolveTerminalTabTitle(
+        {
+          customTitle: null,
+          quickCommandLabel: 'Run tests',
+          generatedTitle: 'Refactor auth',
+          title: '⠐ Ship the rename fix'
+        },
+        true
+      )
+    ).toBe('Run tests')
+  })
+
+  it('keeps generated titles ahead of agent status and cwd frames', () => {
+    expect(
+      resolveTerminalTabTitle(
+        { customTitle: null, generatedTitle: 'Refactor auth', title: '✳ Claude Code' },
+        true
+      )
+    ).toBe('Refactor auth')
+    expect(
+      resolveTerminalTabTitle(
+        { customTitle: null, generatedTitle: 'Refactor auth', title: '..-cost-savings' },
+        true
+      )
+    ).toBe('Refactor auth')
+    expect(
+      resolveTerminalTabTitle(
+        {
+          customTitle: null,
+          generatedTitle: 'Refactor auth',
+          title: 'Terminal 2',
+          defaultTitle: 'Terminal 2'
+        },
+        true
+      )
+    ).toBe('Refactor auth')
+  })
+
   it('keeps generated titles ahead of generic OpenCode titles', () => {
     expect(
       resolveTerminalTabTitle(

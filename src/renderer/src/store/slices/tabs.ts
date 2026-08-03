@@ -1106,7 +1106,13 @@ export const createTabsSlice: StateCreator<AppState, [], [], TabsSlice> = (set, 
 
   setTabCustomLabel: (tabId, label, opts) => {
     const exists = get().getTab(tabId) !== null
-    set((state) => patchTab(state.unifiedTabsByWorktree, tabId, { customLabel: label }) ?? {})
+    // Why: mirrors TerminalTab.customTitleAt so the unified strip resolves the
+    // same newer-rename-wins order against the agent's own `/rename`.
+    const customLabelAt = Date.now()
+    set(
+      (state) =>
+        patchTab(state.unifiedTabsByWorktree, tabId, { customLabel: label, customLabelAt }) ?? {}
+    )
     if (exists && opts?.recordInteraction !== false) {
       get().recordFeatureInteraction?.('terminal-tabs')
     }

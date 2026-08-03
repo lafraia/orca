@@ -226,26 +226,29 @@ type ReactElementLike = {
   props: Record<string, unknown>
 }
 
-function makeTerminalTab() {
+function makeTerminalTab(overrides: Record<string, unknown> = {}) {
   return {
     id: 'terminal-tab-1',
     title: 'Runtime terminal title',
     customTitle: null,
     type: 'terminal',
     worktreeId: 'wt-1',
-    createdAt: 0
+    createdAt: 0,
+    ...overrides
   }
 }
 
 async function renderSortableTab({
-  onSetCustomTitle = vi.fn()
+  onSetCustomTitle = vi.fn(),
+  tab = {}
 }: {
   onSetCustomTitle?: (tabId: string, title: string | null) => void
+  tab?: Record<string, unknown>
 } = {}): Promise<unknown> {
   reactHookRuntime.index = 0
   const module = await import('./SortableTab')
   return module.default({
-    tab: makeTerminalTab() as never,
+    tab: makeTerminalTab(tab) as never,
     unifiedTabId: 'terminal-tab-1',
     groupId: 'group-1',
     tabCount: 1,
@@ -387,5 +390,72 @@ describe('SortableTab rename shortcut signal', () => {
     pressInputKey(input, 'Enter')
 
     expect(onSetCustomTitle).toHaveBeenCalledWith('terminal-tab-1', '日本語 terminal')
+  })
+})
+
+// Why: the strip used to short-circuit on the raw `customTitle`, so a manual
+// rename hid a newer `/rename` even after tab-title-resolution ranked the agent
+// rename first. Assert the painted label, not just the resolver.
+describe('SortableTab label after a rename', () => {
+  beforeEach(() => {
+    reactHookRuntime.states = []
+    reactHookRuntime.index = 0
+    storeState.renamingTabId = null
+    storeState.unreadTerminalTabs = {}
+    vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() })
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0)
+      return 1
+    })
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+  })
+
+  function findTabTitleAttribute(node: unknown): unknown {
+    if (node == null || typeof node === 'string' || typeof node === 'number') {
+      return undefined
+    }
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        const found = findTabTitleAttribute(child)
+        if (found !== undefined) {
+          return found
+        }
+      }
+      return undefined
+    }
+    const el = node as ReactElementLike
+    return el.props?.['data-tab-title'] ?? findTabTitleAttribute(el.props?.children)
+  }
+
+  async function renderedLabel(tab: Record<string, unknown>): Promise<unknown> {
+    return findTabTitleAttribute(expandNode(await renderSortableTab({ tab })))
+  }
+
+  it('shows the agent rename over an older manual rename', async () => {
+    expect(
+      await renderedLabel({
+        customTitle: 'abc 123',
+        customTitleAt: 1785730425717,
+        agentSessionTitle: 'ddd',
+        agentSessionTitleAt: 1785730430960,
+        title: '✳ ddd'
+      })
+    ).toBe('ddd')
+  })
+
+  it('shows the manual rename when it is the newer one', async () => {
+    expect(
+      await renderedLabel({
+        customTitle: 'abc 123',
+        customTitleAt: 1785730430960,
+        agentSessionTitle: 'ddd',
+        agentSessionTitleAt: 1785730425717,
+        title: '✳ ddd'
+      })
+    ).toBe('abc 123')
+  })
+
+  it('falls back to the resolved live title with no rename at all', async () => {
+    expect(await renderedLabel({ customTitle: null, title: 'Refactor auth' })).toBe('Refactor auth')
   })
 })

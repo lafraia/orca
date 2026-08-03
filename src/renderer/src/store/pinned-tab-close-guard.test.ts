@@ -140,7 +140,16 @@ describe('resolvePinnedTabLabel', () => {
             customLabel: null,
             quickCommandLabel: null,
             generatedLabel: ' Gen ',
-            label: 'Plain'
+            // Why: a status frame carries no name, so the generated label wins.
+            label: '✳ Claude Code'
+          },
+          {
+            id: 'e',
+            entityId: 'ee',
+            customLabel: null,
+            quickCommandLabel: null,
+            generatedLabel: 'Gen',
+            label: ' Renamed session '
           },
           {
             id: 'd',
@@ -157,6 +166,7 @@ describe('resolvePinnedTabLabel', () => {
     expect(resolvePinnedTabLabel(state, 'wt-1', 'a')).toBe('Custom')
     expect(resolvePinnedTabLabel(state, 'wt-1', 'b')).toBe('Run tests')
     expect(resolvePinnedTabLabel(state, 'wt-1', 'ec')).toBe('Gen')
+    expect(resolvePinnedTabLabel(state, 'wt-1', 'ee')).toBe('Renamed session')
     expect(resolvePinnedTabLabel(state, 'wt-1', 'ed')).toBe('Plain')
   })
 

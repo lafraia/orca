@@ -31,10 +31,16 @@ describe('getAgentRowConversationName', () => {
     )
   })
 
-  it('uses the generated title only when generated titles are enabled', () => {
+  it('lets an agent-set name outrank the generated title', () => {
     const tab = makeTab({ generatedTitle: 'Fix intake flow', title: '✳ Investigate replay bug' })
-    expect(getAgentRowConversationName(tab, 'claude', true)).toBe('Fix intake flow')
+    expect(getAgentRowConversationName(tab, 'claude', true)).toBe('Investigate replay bug')
     expect(getAgentRowConversationName(tab, 'claude', false)).toBe('Investigate replay bug')
+  })
+
+  it('uses the generated title only when generated titles are enabled', () => {
+    const tab = makeTab({ generatedTitle: 'Fix intake flow', title: '✳ Claude Code' })
+    expect(getAgentRowConversationName(tab, 'claude', true)).toBe('Fix intake flow')
+    expect(getAgentRowConversationName(tab, 'claude', false)).toBeNull()
   })
 
   it('strips leading status decoration from agent-set titles', () => {

@@ -10,6 +10,7 @@ import {
   normalizeTerminalTitle
 } from '../../shared/agent-detection'
 import { extractOscTitleScanTail } from '../../shared/osc-title-scan-tail'
+import { resolveNewestTerminalTabRename } from '../../shared/newest-tab-rename'
 import { isServerDriveListRequest, listWindowsDrives } from './windows-drive-listing'
 import { extractLastOsc7Uri, extractOscScanTail } from '../daemon/osc7-uri-extraction'
 import { parseFileUriPathParts } from '../daemon/osc7-file-uri'
@@ -6427,7 +6428,7 @@ export class OrcaRuntimeService {
           const ptyId =
             layout?.ptyIdsByLeafId?.[leafId] ?? (leafIds.length === 1 ? tab.ptyId : null)
           const title =
-            tab.customTitle?.trim() ||
+            resolveNewestTerminalTabRename(tab) ||
             tab.generatedTitle?.trim() ||
             tab.title?.trim() ||
             tab.defaultTitle?.trim() ||
@@ -8110,7 +8111,11 @@ export class OrcaRuntimeService {
       ...session,
       tabsByWorktree: {
         ...session.tabsByWorktree,
-        [worktreeId]: tabs.map((tab) => (tab.id === tabId ? { ...tab, customTitle: title } : tab))
+        // Why: stamped like the renderer's setTabCustomTitle so a rename from a
+        // remote client is ordered against the agent's own `/rename` too.
+        [worktreeId]: tabs.map((tab) =>
+          tab.id === tabId ? { ...tab, customTitle: title, customTitleAt: Date.now() } : tab
+        )
       }
     })
   }

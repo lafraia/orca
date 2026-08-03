@@ -183,6 +183,7 @@ import {
   type RichMarkdownContextMenuCommandPayload
 } from '../shared/rich-markdown-context-menu'
 import type {
+  AgentSessionRenameIpcPayload,
   AgentStatusClearIpcPayload,
   AgentStatusIpcPayload,
   MigrationUnsupportedPtyEntry
@@ -4663,6 +4664,15 @@ const api = {
     }
   },
 
+  agentSession: {
+    /** Listen for `/rename` observed in a live agent transcript. */
+    onRename: (callback: (data: AgentSessionRenameIpcPayload) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, data: AgentSessionRenameIpcPayload) =>
+        callback(data)
+      ipcRenderer.on('agentSession:rename', listener)
+      return () => ipcRenderer.removeListener('agentSession:rename', listener)
+    }
+  },
   agentStatus: {
     /** Listen for agent status updates forwarded from native hook receivers. */
     onSet: (callback: (data: AgentStatusIpcPayload) => void): (() => void) => {

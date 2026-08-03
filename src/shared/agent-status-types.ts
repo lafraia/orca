@@ -179,6 +179,13 @@ export type ParsedAgentStatusPayload = Omit<AgentStatusPayload, 'prompt'> & { pr
  * Wire shape for agent-status IPC. Both `agentStatus:set` and `agentStatus:getSnapshot`
  * produce this shape so renderer call sites share a single `setAgentStatus` path.
  */
+/** A `/rename` observed in a live agent transcript. Separate from the status
+ *  payload because it is not a state change — it is the user naming the tab. */
+export type AgentSessionRenameIpcPayload = {
+  paneKey: string
+  customTitle: string
+}
+
 export type AgentStatusIpcPayload = ParsedAgentStatusPayload & {
   paneKey: string
   launchToken?: string

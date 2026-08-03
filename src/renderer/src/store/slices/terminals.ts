@@ -350,6 +350,23 @@ function updateUnifiedTerminalGeneratedLabel(
   )
 }
 
+function updateUnifiedTerminalAgentSessionLabel(
+  unifiedTabs: Tab[],
+  terminalTabId: string,
+  agentSessionLabel: string,
+  agentSessionLabelAt: number
+): Tab[] | null {
+  const unifiedIndex = unifiedTabs.findIndex(
+    (entry) => entry.contentType === 'terminal' && entry.entityId === terminalTabId
+  )
+  if (unifiedIndex === -1 || unifiedTabs[unifiedIndex]?.agentSessionLabel === agentSessionLabel) {
+    return null
+  }
+  return unifiedTabs.map((entry, index) =>
+    index === unifiedIndex ? { ...entry, agentSessionLabel, agentSessionLabelAt } : entry
+  )
+}
+
 function getTabIdFromPaneKey(paneKey: string): string | null {
   return parsePaneKey(paneKey)?.tabId ?? parseLegacyNumericPaneKey(paneKey)?.tabId ?? null
 }
@@ -688,6 +705,8 @@ export type TerminalSlice = {
     title: string | null,
     opts?: { recordInteraction?: boolean }
   ) => void
+  /** Record the name the agent's own rename command set for this tab's session. */
+  setTabAgentSessionTitle: (tabId: string, title: string) => void
   setTabColor: (tabId: string, color: string | null) => void
   updateTabPtyId: (
     tabId: string,
@@ -2188,10 +2207,15 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
   },
 
   setTabCustomTitle: (tabId, title, opts) => {
+    // Why: stamped so the newer of the manual rename and the agent's own
+    // `/rename` wins (newest-tab-rename.ts) instead of one silently pinning.
+    const renamedAt = Date.now()
     set((s) => {
       const next = { ...s.tabsByWorktree }
       for (const wId of Object.keys(next)) {
-        next[wId] = next[wId].map((t) => (t.id === tabId ? { ...t, customTitle: title } : t))
+        next[wId] = next[wId].map((t) =>
+          t.id === tabId ? { ...t, customTitle: title, customTitleAt: renamedAt } : t
+        )
       }
       scheduleRuntimeGraphSync()
       return { tabsByWorktree: next }
@@ -2202,6 +2226,55 @@ export const createTerminalSlice: StateCreator<AppState, [], [], TerminalSlice> 
     if (item) {
       get().setTabCustomLabel(item.id, title, opts)
     }
+  },
+
+  setTabAgentSessionTitle: (tabId, title) => {
+    const trimmed = title.trim()
+    if (!trimmed) {
+      return
+    }
+    const ownerWorktreeId = getTerminalTabOwnerWorktreeId(get().tabsByWorktree, tabId)
+    if (!ownerWorktreeId) {
+      return
+    }
+    // Why: the agent re-appends its rename record every turn. Restamping an
+    // unchanged value would keep pushing it past a later manual rename, so an
+    // unchanged rename is a no-op — only a genuinely new name is a new act.
+    const currentTab = (get().tabsByWorktree[ownerWorktreeId] ?? []).find((t) => t.id === tabId)
+    if (!currentTab || currentTab.agentSessionTitle === trimmed) {
+      return
+    }
+    const renamedAt = Date.now()
+    set((s) => {
+      const ownerTabs = s.tabsByWorktree[ownerWorktreeId]
+      if (!ownerTabs) {
+        return s
+      }
+      const nextState: Partial<AppState> = {
+        tabsByWorktree: {
+          ...s.tabsByWorktree,
+          [ownerWorktreeId]: ownerTabs.map((tab) =>
+            tab.id === tabId
+              ? { ...tab, agentSessionTitle: trimmed, agentSessionTitleAt: renamedAt }
+              : tab
+          )
+        }
+      }
+      const unifiedTabs = updateUnifiedTerminalAgentSessionLabel(
+        s.unifiedTabsByWorktree[ownerWorktreeId] ?? [],
+        tabId,
+        trimmed,
+        renamedAt
+      )
+      if (unifiedTabs) {
+        nextState.unifiedTabsByWorktree = {
+          ...s.unifiedTabsByWorktree,
+          [ownerWorktreeId]: unifiedTabs
+        }
+      }
+      scheduleRuntimeGraphSync()
+      return nextState
+    })
   },
 
   setTabColor: (tabId, color) => {
